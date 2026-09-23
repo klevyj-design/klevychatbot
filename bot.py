@@ -62,6 +62,26 @@ async def process_callbacks(callback: types.CallbackQuery):
         await callback.answer("❌ Немає доступу!", show_alert=True)
         return
 
+    # Проверяем специфические колбэки первыми, чтобы они не перехватывались общей логикой
+    if callback.data.startswith("setmain_") or callback.data.startswith("setchan_"):
+        action, target_id = callback.data.split("_")
+        target_id = int(target_id)
+        if action == "setmain":
+            config["main_chats"][u_id] = target_id
+            save_config(config)
+            await callback.answer("✅ Чат успішно призначено Головним!", show_alert=True)
+        elif action == "setchan":
+            if u_id not in config["channels"]:
+                config["channels"][u_id] = []
+            if target_id not in config["channels"][u_id]:
+                config["channels"][u_id].append(target_id)
+                save_config(config)
+                await callback.answer("✅ Канал додано до списку підписок!", show_alert=True)
+            else:
+                await callback.answer("⚠️ Цей канал вже є у списку.", show_alert=True)
+        await callback.message.edit_text("Головне меню панелі керування:", reply_markup=get_admin_keyboard(callback.from_user.id))
+        return
+
     if callback.data == "manage_main_chat":
         current_chat = config["main_chats"].get(u_id, "Не встановлено")
         await callback.message.edit_text(
@@ -154,39 +174,20 @@ async def handle_inputs(message: types.Message):
                 save_config(config)
                 await message.answer(f"✅ Користувача `{new_adm}` додано в адміни!", reply_markup=get_admin_keyboard(message.from_user.id))
 
-@dp.callback_query(lambda c: c.data.startswith("setmain_") or c.data.startswith("setchan_"))
-async def save_role(callback: types.CallbackQuery):
-    u_id = str(callback.from_user.id)
-    action, target_id = callback.data.split("_")
-    target_id = int(target_id)
-    if action == "setmain":
-        config["main_chats"][u_id] = target_id
-        save_config(config)
-        await callback.message.edit_text(f"✅ Чат `{target_id}` встановлено як Головний чат модерації!", reply_markup=get_admin_keyboard(callback.from_user.id))
-    elif action == "setchan":
-        if u_id not in config["channels"]:
-            config["channels"][u_id] = []
-        if len(config["channels"][u_id]) >= 5:
-            await callback.answer("⚠️ Досягнуто ліміт у 5 каналів!", show_alert=True)
-            return
-        if target_id not in config["channels"][u_id]:
-            config["channels"][u_id].append(target_id)
-            save_config(config)
-            await callback.message.edit_text(f"✅ Канал `{target_id}` додано до списку перевірки!", reply_markup=get_admin_keyboard(callback.from_user.id))
-
-# --- ЗАЛІЗОБЕТОННИЙ ВЕБ-СЕРВЕР ДЛЯ ОБХОДУ ОБМЕЖЕНЬ RENDER ---
+# ================= Фоновий веб-сервер для хостингу Render =================
 def run_health_server():
     port = int(os.environ.get("PORT", 8080))
-    server_address = ('', port)
-    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
-    logging.info(f"Health server running on port {port}")
-    httpd.serve_forever()
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    logging.info(f"Фоновий веб-сервер запущено на порту {port}")
+    server.serve_forever()
 
+# ================= Точка входу для запуску бота ==========================
 async def main():
-    # Запускаємо сервер в окремому потоці, щоб він ніколи не засинав і не заважав боту
+    # Запускаємо веб-сервер в окремому потоці, щоб Render не вимикав бота
     threading.Thread(target=run_health_server, daemon=True).start()
+    
+    logging.info("Бот успішно запущений та очікує на команди...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
