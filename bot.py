@@ -3,7 +3,7 @@ import json
 import os
 import asyncio
 import sys
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import CommandStart
@@ -45,7 +45,7 @@ def get_admin_keyboard(user_id):
     builder.row(types.InlineKeyboardButton(text="📢 Канали підписки (до 5 шт.)", callback_data="manage_channels"))
     if user_id == SUPER_ADMIN_ID:
         builder.row(types.InlineKeyboardButton(text="👑 Додати субадміна", callback_data="add_subadmin"))
-    builder.row(types.InlineKeyboardButton(text="📊 Status налаштувань", callback_data="view_stats"))
+    builder.row(types.InlineKeyboardButton(text="📊 Статус налаштувань", callback_data="view_stats"))
     return builder.as_markup()
 
 @dp.message(CommandStart())
@@ -197,4 +197,5 @@ async def handle_inputs(message: types.Message):
             new_adm = int(text)
             if new_adm not in config["admins"]:
                 config["admins"].append(new_adm)
+                save_config(config)
         
