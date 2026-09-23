@@ -20,7 +20,7 @@ dp = Dispatcher()
 
 CONFIG_FILE = "bot_config.json"
 
-# Тимчасове сховище станів для адмінів (щоб бот знав, що користувач зараз вводить)
+# Тимчасове сховище станів для адмінів
 USER_STATES = {}
 
 def load_config():
@@ -112,7 +112,7 @@ async def process_callbacks(callback: types.CallbackQuery):
     elif callback.data == "add_chan_mode":
         USER_STATES[callback.from_user.id] = "wait_channel"
         await callback.message.edit_text(
-            "📝 Надішліть сюди цифровий ID каналу підписки (наприклад: `-1004407416238`).",
+            "📝 Надішліть сюди цифровий ID навколо каналу підписки (наприклад: `-1004407416238`).",
             reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="🔙 Назад", callback_data="manage_channels")).as_markup()
         )
     elif callback.data == "add_subadmin":
@@ -126,20 +126,19 @@ async def process_callbacks(callback: types.CallbackQuery):
         my_chat = config["main_chats"].get(u_id, "Не встановлено")
         my_chans = config["channels"].get(u_id, [])
         await callback.message.edit_text(
-            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системі: {len(config['admins'])}",
+            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Canaлів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системі: {len(config['admins'])}",
             reply_markup=get_admin_keyboard(callback.from_user.id)
         )
     elif callback.data == "to_main":
         USER_STATES[callback.from_user.id] = None
         await callback.message.edit_text("Головне меню панелі керування:", reply_markup=get_admin_keyboard(callback.from_user.id))
     elif callback.data.startswith("delchan_"):
-        ch_to_del = int(callback.data.split("_")[1]) # Виправлено помилку split
+        ch_to_del = int(callback.data.split("_")[1])
         if u_id in config["channels"] and ch_to_del in config["channels"][u_id]:
             config["channels"][u_id].remove(ch_to_del)
             save_config(config)
             await callback.answer("✅ Канал вилучено!", show_alert=True)
         
-        # Оновлюємо меню каналів після видалення
         user_chans = config["channels"].get(u_id, [])
         builder = InlineKeyboardBuilder()
         text = "📢 **Ваші канали для підписки (до 5 шт.):**\n\n"
@@ -158,7 +157,7 @@ async def process_callbacks(callback: types.CallbackQuery):
 async def handle_inputs(message: types.Message):
     u_id = str(message.from_user.id)
     
-    # Спочатку перевіряємо, чи це повідомлення з головного чату для фільтрації спаму
+    # 1. Перевірка повідомлень у групах
     for owner_id, main_chat_id in config["main_chats"].items():
         if message.chat.id == main_chat_id:
             group_member = await message.chat.get_member(message.from_user.id)
@@ -172,7 +171,7 @@ async def handle_inputs(message: types.Message):
                         try:
                             await message.delete()
                             warn = await message.answer(
-                                f"👋 **Hi / Привіт, {message.from_user.first_name}!**\n\n🚫 Subscribe to our channels to write here!\n🚫 Підпишіться на наші開канали, щоб писати тут!"
+                                f"👋 **Hi / Привіт, {message.from_user.first_name}!**\n\n🚫 Subscribe to our channels to write here!\n🚫 Підпишіться на наші канали, щоб писати тут!"
                             )
                             await asyncio.sleep(10)
                             await warn.delete()
@@ -183,7 +182,7 @@ async def handle_inputs(message: types.Message):
                     continue
             return
 
-    # Обробка введення даних адміном в приватних повідомленнях
+    # 2. Обробка введення даних адміном в ПП
     if message.chat.type == "private" and is_admin(message.from_user.id):
         state = USER_STATES.get(message.from_user.id)
         text = message.text.strip()
@@ -196,4 +195,6 @@ async def handle_inputs(message: types.Message):
                 builder.row(types.InlineKeyboardButton(text="📢 Додати як Канал підписки", callback_data=f"setchan_{target_id}"))
                 await message.answer(f"❓ Яку роль призначити для ID `{target_id}`?", reply_markup=builder.as_markup())
             else:
-                
+                await message.answer("❌ Некоректний формат ID. Має починатися з `-100` і містити тільки цифри.")
+            return
+
