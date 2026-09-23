@@ -95,7 +95,7 @@ async def process_callbacks(callback: types.CallbackQuery):
         USER_STATES[callback.from_user.id] = None
         user_chans = config["channels"].get(u_id, [])
         builder = InlineKeyboardBuilder()
-        text = "📢 **Ваші канали для підписки (до 5 шт.):**\n\n"
+        text = "📢 **Ваші接收канали для підписки (до 5 шт.):**\n\n"
         if not user_chans:
             text += "ℹ️ Список порожній.\n"
         else:
@@ -123,7 +123,7 @@ async def process_callbacks(callback: types.CallbackQuery):
         my_chat = config["main_chats"].get(u_id, "Не встановлено")
         my_chans = config["channels"].get(u_id, [])
         await callback.message.edit_text(
-            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системі: {len(config['admins'])}",
+            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системи: {len(config['admins'])}",
             reply_markup=get_admin_keyboard(callback.from_user.id)
         )
     elif callback.data == "to_main":
