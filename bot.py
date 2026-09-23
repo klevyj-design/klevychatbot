@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiohttp import web  # Додано для обходу обмежень Render
 
 # ==================== АВТОМАТИЧНІ НАЛАШТУВАННЯ СИСТЕМИ ====================
-TOKEN = "8973060800:AAHV0T7_yknoNZWo2s7AFxGC108b7fHjPYE"
+TOKEN = "8973060800:AAHI2CWAQZ5wWr5O0TCexzvH_ap_IqcfEk8"
 SUPER_ADMIN_ID = 997372240
 MAIN_CHAT_ID = -1004457991271
 # ==========================================================================
