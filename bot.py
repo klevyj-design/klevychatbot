@@ -1,13 +1,12 @@
 import logging
 import json
 import os
+import asyncio
 import sys
-from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # ==================== НАЛАШТУВАННЯ ВЛАСНИКА СИСТЕМИ ====================
 TOKEN = "8973060800:AAHI2CWAQZ5wWr5O0TCexzvH_ap_IqcfEk8"
@@ -130,7 +129,7 @@ async def process_callbacks(callback: types.CallbackQuery):
         USER_STATES[callback.from_user.id] = None
         await callback.message.edit_text("Головне меню панелі керування:", reply_markup=get_admin_keyboard(callback.from_user.id))
     elif callback.data.startswith("delchan_"):
-        ch_to_del = int(callback.data.split("_")[1])
+        ch_to_del = int(callback.data.split("_"))
         if u_id in config["channels"] and ch_to_del in config["channels"][u_id]:
             config["channels"][u_id].remove(ch_to_del)
             save_config(config)
@@ -196,4 +195,6 @@ async def handle_inputs(message: types.Message):
         elif state == "wait_subadmin" and text.isdigit() and message.from_user.id == SUPER_ADMIN_ID:
             new_adm = int(text)
             if new_adm not in config["admins"]:
+                config["admins"].append(new_adm)
+                save_config(config)
         
