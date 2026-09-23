@@ -2,16 +2,17 @@ import logging
 import json
 import os
 import asyncio
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiohttp import web
 
-# ==================== ЄДИНЕ НАЛАШТУВАННЯ (ВЛАСНИК СИСТЕМИ) ====================
+# ==================== НАЛАШТУВАННЯ ВЛАСНИКА СИСТЕМИ ====================
 TOKEN = "8973060800:AAHV0T7_yknoNZWo2s7AFxGC108b7fHjPYE"
-SUPER_ADMIN_ID = 997372240  # Тільки ваш особистий ID прописаний залізно
-# ==============================================================================
+SUPER_ADMIN_ID = 997372240
+# =======================================================================
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -34,11 +35,9 @@ def save_config(config):
 
 config = load_config()
 
-# Перевірка: чи користувач є адміном цього бота
 def is_admin(user_id):
     return user_id in config["admins"] or user_id == SUPER_ADMIN_ID
 
-# --- КЛАВІАТУРА АДМІН-ПАНЕЛІ ---
 def get_admin_keyboard(user_id):
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="💬 Мій Головний Чат (де видаляти)", callback_data="manage_main_chat"))
@@ -52,16 +51,13 @@ def get_admin_keyboard(user_id):
 async def start_cmd(message: types.Message):
     if message.chat.type == "private" and is_admin(message.from_user.id):
         await message.answer(
-            f"⚙️ **Панель керування ботом**\n\n"
-            f"Тут ви можете повністю налаштувати логіку роботи бота без зміни коду.",
+            f"⚙️ **Панель керування ботом**\n\nТут ви можете налаштувати роботу бота прямо з телефону.",
             reply_markup=get_admin_keyboard(message.from_user.id)
         )
 
-# --- ОБРОБКА КНОПОК ПАНЕЛІ ---
 @dp.callback_query()
 async def process_callbacks(callback: types.CallbackQuery):
     u_id = str(callback.from_user.id)
-    
     if not is_admin(callback.from_user.id):
         await callback.answer("❌ Немає доступу!", show_alert=True)
         return
@@ -69,61 +65,42 @@ async def process_callbacks(callback: types.CallbackQuery):
     if callback.data == "manage_main_chat":
         current_chat = config["main_chats"].get(u_id, "Не встановлено")
         await callback.message.edit_text(
-            f"💬 **Налаштування Головного чату спілкування:**\n\n"
-            f"Поточний чат, де бот видаляє повідомлення: `{current_chat}`\n\n"
-            f"👉 **Щоб змінити або встановити його:** просто надішліть у приват боту ID вашої групи (наприклад: `-1004457991271`).\n"
-            f"*(Бот має бути адміном у цій групі з правом видалення повідомлень)*",
+            f"💬 **Налаштування Головного чату:**\n\nПоточний чат: `{current_chat}`\n\n👉 Надішліть сюди ID вашої групи (наприклад: `-1004457991271`).",
             reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="🔙 Назад", callback_data="to_main")).as_markup()
         )
-        
     elif callback.data == "manage_channels":
         user_chans = config["channels"].get(u_id, [])
         builder = InlineKeyboardBuilder()
-        text = "📢 **Ваші канали для обов'язкової підписки (до 5 шт.):**\n\n"
-        
+        text = "📢 **Ваші канали для підписки (до 5 шт.):**\n\n"
         if not user_chans:
-            text += "ℹ️ Список порожній. Користувачі можуть писати без обмежень.\n"
+            text += "ℹ️ Список порожній.\n"
         else:
             for idx, ch in enumerate(user_chans, 1):
                 text += f"{idx}. ID: `{ch}`\n"
                 builder.row(types.InlineKeyboardButton(text=f"❌ Видалити {ch}", callback_data=f"delchan_{ch}"))
-                
         if len(user_chans) < 5:
             builder.row(types.InlineKeyboardButton(text="➕ Додати новий канал", callback_data="add_chan_mode"))
         builder.row(types.InlineKeyboardButton(text="🔙 Назад", callback_data="to_main"))
-        
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
-        
     elif callback.data == "add_chan_mode":
         await callback.message.edit_text(
-            "📝 **Додавання каналу підписки:**\n\n"
-            "Надішліть у приват боту цифровий ID каналу (наприклад: `-1004407416238`).\n"
-            "*(Бот має бути адміном на цьому каналі)*",
+            "📝 Надішліть сюди цифровий ID каналу підписки (наприклад: `-1004407416238`).",
             reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="🔙 Назад", callback_data="manage_channels")).as_markup()
         )
-        
     elif callback.data == "add_subadmin":
         await callback.message.edit_text(
-            "👑 **Додавання нового адміністратора системи:**\n\n"
-            "Надішліть боту цифровий Telegram ID користувача, якому хочете довірити бота.\n"
-            "Він зможе налаштувати його під свої групи.",
+            "👑 Надішліть боту цифровий ID користувача, якому хочете дати доступ.",
             reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="🔙 Назад", callback_data="to_main")).as_markup()
         )
-        
     elif callback.data == "view_stats":
         my_chat = config["main_chats"].get(u_id, "Не встановлено")
         my_chans = config["channels"].get(u_id, [])
         await callback.message.edit_text(
-            f"📊 **Поточний статус вашої конфігурації:**\n\n"
-            f"🔹 Модерація в чаті: `{my_chat}`\n"
-            f"🔹 Кількість каналів перевірки: {len(my_chans)}/5\n"
-            f"🔹 Всього адмінів у системі: {len(config['admins'])}",
+            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системі: {len(config['admins'])}",
             reply_markup=get_admin_keyboard(callback.from_user.id)
         )
-        
     elif callback.data == "to_main":
         await callback.message.edit_text("Головне меню панелі керування:", reply_markup=get_admin_keyboard(callback.from_user.id))
-        
     elif callback.data.startswith("delchan_"):
         ch_to_del = int(callback.data.split("_")[1])
         if u_id in config["channels"] and ch_to_del in config["channels"][u_id]:
@@ -132,21 +109,14 @@ async def process_callbacks(callback: types.CallbackQuery):
             await callback.answer("✅ Канал вилучено!", show_alert=True)
         await callback.message.edit_text("Головне меню:", reply_markup=get_admin_keyboard(callback.from_user.id))
 
-# --- ОБРОБКА ТЕКСТУ (ПРИЙОМ НАЛАШТУВАНЬ ВІД АДМІНІВ) ---
 @dp.message()
 async def handle_inputs(message: types.Message):
     u_id = str(message.from_user.id)
-
-    # 1. ЛОГІКА МОДЕРАЦІЇ В ЧАТАХ
-    # Шукаємо, чи є цей чат чиєюсь підключеною групою для видалення повідомлень
     for owner_id, main_chat_id in config["main_chats"].items():
         if message.chat.id == main_chat_id:
-            # Пропускаємо адмінів самої групи Telegram
             group_member = await message.chat.get_member(message.from_user.id)
             if group_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
                 return
-
-            # Перевіряємо підписку на канали саме цього адміна
             check_channels = config["channels"].get(owner_id, [])
             for ch_id in check_channels:
                 try:
@@ -155,9 +125,7 @@ async def handle_inputs(message: types.Message):
                         try:
                             await message.delete()
                             warn = await message.answer(
-                                f"👋 **Hi / Привіт, {message.from_user.first_name}!**\n\n"
-                                f"🚫 **EN:** Subscribe to our channels to write here!\n"
-                                f"🚫 **UA:** Підпишіться на наші канали, щоб писати тут!"
+                                f"👋 **Hi / Привіт, {message.from_user.first_name}!**\n\n🚫 Subscribe to our channels to write here!\n🚫 Підпишіться на наші канали, щоб писати тут!"
                             )
                             await asyncio.sleep(10)
                             await warn.delete()
@@ -168,41 +136,57 @@ async def handle_inputs(message: types.Message):
                     continue
             return
 
-    # 2. ПРИЙОМ ДАНИХ В ПРИВАТІ АДМІНА
     if message.chat.type == "private" and is_admin(message.from_user.id):
         text = message.text.strip()
-        
-        # Якщо ввели ID групи або каналу (число починається з мінуса і містить цифри)
         if text.startswith("-") and text.replace("-", "").isdigit():
             target_id = int(text)
-            
-            # Якщо це чат супергрупи (зазвичай починається на -100)
             if text.startswith("-100"):
-                # Запитуємо користувача, що це за ID, щоб не переплутати
                 builder = InlineKeyboardBuilder()
                 builder.row(types.InlineKeyboardButton(text="💬 Зробити Головним чатом", callback_data=f"setmain_{target_id}"))
                 builder.row(types.InlineKeyboardButton(text="📢 Додати як Канал підписки", callback_data=f"setchan_{target_id}"))
                 await message.answer(f"❓ Яку роль призначити для ID `{target_id}`?", reply_markup=builder.as_markup())
             else:
-                await message.answer("❌ Некоректний формат ID. ID чатів та каналів у Telegram мають починатися з `-100`.")
-                
-        # Якщо Супер-адмін ввів просто цифри (ID субадміна)
+                await message.answer("❌ Некоректний формат ID. Має починатися з `-100`.")
         elif text.isdigit() and message.from_user.id == SUPER_ADMIN_ID:
             new_adm = int(text)
             if new_adm not in config["admins"]:
                 config["admins"].append(new_adm)
                 save_config(config)
-                await message.answer(f"✅ Користувача `{new_adm}` додано в адміни бота!", reply_markup=get_admin_keyboard(message.from_user.id))
-            else:
-                await message.answer("ℹ️ Він вже є у списку адмінів.", reply_markup=get_admin_keyboard(message.from_user.id))
+                await message.answer(f"✅ Користувача `{new_adm}` додано в адміни!", reply_markup=get_admin_keyboard(message.from_user.id))
 
-# --- ДОДАТКОВІ КНОПКИ ДЛЯ ВИЗНАЧЕННЯ РОЛІ ID ---
 @dp.callback_query(lambda c: c.data.startswith("setmain_") or c.data.startswith("setchan_"))
 async def save_role(callback: types.CallbackQuery):
     u_id = str(callback.from_user.id)
     action, target_id = callback.data.split("_")
     target_id = int(target_id)
-    
     if action == "setmain":
         config["main_chats"][u_id] = target_id
-                
+        save_config(config)
+        await callback.message.edit_text(f"✅ Чат `{target_id}` встановлено як Головний чат модерації!", reply_markup=get_admin_keyboard(callback.from_user.id))
+    elif action == "setchan":
+        if u_id not in config["channels"]:
+            config["channels"][u_id] = []
+        if len(config["channels"][u_id]) >= 5:
+            await callback.answer("⚠️ Досягнуто ліміт у 5 каналів!", show_alert=True)
+            return
+        if target_id not in config["channels"][u_id]:
+            config["channels"][u_id].append(target_id)
+            save_config(config)
+            await callback.message.edit_text(f"✅ Канал `{target_id}` додано до списку перевірки!", reply_markup=get_admin_keyboard(callback.from_user.id))
+
+# --- ЗАЛІЗОБЕТОННИЙ ВЕБ-СЕРВЕР ДЛЯ ОБХОДУ ОБМЕЖЕНЬ RENDER ---
+def run_health_server():
+    port = int(os.environ.get("PORT", 8080))
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    logging.info(f"Health server running on port {port}")
+    httpd.serve_forever()
+
+async def main():
+    # Запускаємо сервер в окремому потоці, щоб він ніколи не засинав і не заважав боту
+    threading.Thread(target=run_health_server, daemon=True).start()
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+        
