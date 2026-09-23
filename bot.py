@@ -3,7 +3,6 @@ import json
 import os
 import asyncio
 import sys
-from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import CommandStart
@@ -95,7 +94,7 @@ async def process_callbacks(callback: types.CallbackQuery):
         USER_STATES[callback.from_user.id] = None
         user_chans = config["channels"].get(u_id, [])
         builder = InlineKeyboardBuilder()
-        text = "📢 **Ваші接收канали для підписки (до 5 шт.):**\n\n"
+        text = "📢 **Ваші канали для підписки (до 5 шт.):**\n\n"
         if not user_chans:
             text += "ℹ️ Список порожній.\n"
         else:
@@ -123,14 +122,14 @@ async def process_callbacks(callback: types.CallbackQuery):
         my_chat = config["main_chats"].get(u_id, "Не встановлено")
         my_chans = config["channels"].get(u_id, [])
         await callback.message.edit_text(
-            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системи: {len(config['admins'])}",
+            f"📊 **Статус налаштувань:**\n\n🔹 Чат модерації: `{my_chat}`\n🔹 Каналів перевірки: {len(my_chans)}/5\n🔹 Адмінів у системі: {len(config['admins'])}",
             reply_markup=get_admin_keyboard(callback.from_user.id)
         )
     elif callback.data == "to_main":
         USER_STATES[callback.from_user.id] = None
         await callback.message.edit_text("Головне меню панелі керування:", reply_markup=get_admin_keyboard(callback.from_user.id))
     elif callback.data.startswith("delchan_"):
-        ch_to_del = int(callback.data.split("_")[1])
+        ch_to_del = int(callback.data.split("_"))
         if u_id in config["channels"] and ch_to_del in config["channels"][u_id]:
             config["channels"][u_id].remove(ch_to_del)
             save_config(config)
@@ -198,4 +197,4 @@ async def handle_inputs(message: types.Message):
             if new_adm not in config["admins"]:
                 config["admins"].append(new_adm)
                 save_config(config)
-        
+                
