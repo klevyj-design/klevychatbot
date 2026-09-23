@@ -5,10 +5,10 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ChatMemberStatus
 from aiogram.filters import Command
-from aiohttp import web  # Додано для обходу обмежень Render
+from aiohttp import web
 
 # ==================== АВТОМАТИЧНІ НАЛАШТУВАННЯ СИСТЕМИ ====================
-TOKEN = "8973060800:AAHI2CWAQZ5wWr5O0TCexzvH_ap_IqcfEk8"
+TOKEN = "8973060800:AAHV0T7_yknoNZWo2s7AFxGC108b7fHjPYE"
 SUPER_ADMIN_ID = 997372240
 MAIN_CHAT_ID = -1004457991271
 # ==========================================================================
@@ -96,7 +96,6 @@ async def check_chat_messages(message: types.Message):
             except Exception as e:
                 logging.error(f"Помилка модерації: {e}")
 
-# --- ФЕЙКОВИЙ ВЕБ-СЕРВЕР ДЛЯ ОБХОДУ ОБМЕЖЕНЬ RENDER ---
 async def handle(request):
     return web.Response(text="Bot is running!")
 
@@ -110,10 +109,9 @@ async def start_web_server():
     await site.start()
 
 async def main():
-    # Запускаємо веб-сервер для хостингу та бота одночасно
     await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
+    
