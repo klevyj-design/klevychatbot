@@ -155,6 +155,7 @@ async def process_callbacks(callback: types.CallbackQuery):
 async def handle_inputs(message: types.Message):
     u_id = str(message.from_user.id)
     
+    # 1. Перевірка повідомлень у групах (фільтрація непідписаних учасників)
     for owner_id, main_chat_id in config["main_chats"].items():
         if message.chat.id == main_chat_id:
             group_member = await message.chat.get_member(message.from_user.id)
@@ -179,10 +180,12 @@ async def handle_inputs(message: types.Message):
                     continue
             return
 
+    # 2. Обробка приватних повідомлень адміна (налаштування)
     if message.chat.type == "private" and is_admin(message.from_user.id):
         state = USER_STATES.get(message.from_user.id)
         text = message.text.strip()
 
+        # Якщо адмін надіслав ID чату або каналу
         if state in ["wait_main_chat", "wait_channel"] or (text.startswith("-") and text.replace("-", "").isdigit()):
             if text.startswith("-100") and text.replace("-", "").isdigit():
                 target_id = int(text)
@@ -194,7 +197,3 @@ async def handle_inputs(message: types.Message):
                 await message.answer("❌ Некоректний формат ID. Має починатися з `-100` і містити тільки цифри.")
             return
 
-        elif state == "wait_subadmin" and text.isdigit() and message.from_user.id == SUPER_ADMIN_ID:
-            new_adm = int(text)
-            if new_adm not in config["admins"]:
-                
